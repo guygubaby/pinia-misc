@@ -1,7 +1,7 @@
 {
   "name": "pinia-misc",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "packageManager": "pnpm@7.2.1",
   "description": "pinia related utilities",
   "author": "guygubaby <guygubaby@gmail.com>",
@@ -13,7 +13,10 @@
     "url": "git+https://github.com/guygubaby/pinia-misc.git"
   },
   "bugs": "https://github.com/guygubaby/pinia-misc/issues",
-  "keywords": ["pinia", "persist"],
+  "keywords": [
+    "pinia",
+    "persist"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
