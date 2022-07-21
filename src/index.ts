@@ -83,7 +83,7 @@ export const updateStorage = (strategy: PersistStrategy, store: Store) => {
   persist(flush, fn)
 }
 
-export default ({ options, store }: PiniaPluginContext): void => {
+export const persistPlugin = ({ options, store }: PiniaPluginContext): void => {
   if (options.persist?.enabled) {
     const defaultStrategy: PersistStrategy[] = [{
       key: store.$id,
