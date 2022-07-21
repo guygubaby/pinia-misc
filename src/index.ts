@@ -60,22 +60,25 @@ const toArray = (paths: string | string[]) => {
 
 let isPending = false
 const p = Promise.resolve()
-let func: Fn = noop
+const fnMap = new Map<string, Fn>()
 
-const flushJob = () => {
+const flushJob = (storeKey: string) => {
+  const func = fnMap.get(storeKey) || noop
+
   func()
   isPending = false
-  func = noop
+
+  fnMap.delete(storeKey)
 }
 
-const persist = (flush: Flush, job: Fn) => {
+const persist = (storeKey: string, flush: Flush, job: Fn) => {
   if (!isClient)
     return
 
   if (flush === 'sync')
     return job()
 
-  func = job
+  fnMap.set(storeKey, job)
 
   if (isPending)
     return
@@ -83,19 +86,18 @@ const persist = (flush: Flush, job: Fn) => {
   isPending = true
 
   if (flush === 'async')
-    return p.then(flushJob)
+    return p.then(() => flushJob(storeKey))
 
-  window.addEventListener('beforeunload', flushJob, { once: true })
+  window.addEventListener('beforeunload', () => flushJob(storeKey), { once: true })
 }
 
 export const updateStorage = (strategy: PersistStrategy, store: Store) => {
   const flush = strategy.flush || 'sync'
+  const storage = strategy.storage || sessionStorage
+  const storeKey = strategy.key || store.$id
+  const paths = strategy.paths
 
   const fn = () => {
-    const storage = strategy.storage || sessionStorage
-    const storeKey = strategy.key || store.$id
-    const paths = strategy.paths
-
     let state: PartialState
 
     if (paths) {
@@ -111,7 +113,7 @@ export const updateStorage = (strategy: PersistStrategy, store: Store) => {
     storage.setItem(storeKey, JSON.stringify(state))
   }
 
-  persist(flush, fn)
+  persist(storeKey, flush, fn)
 }
 
 export const persistPlugin = ({ options, store }: PiniaPluginContext): void => {

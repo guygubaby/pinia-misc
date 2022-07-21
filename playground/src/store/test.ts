@@ -8,13 +8,19 @@ export const useTestStore = defineStore('test', {
     strategies: [
       {
         key: 'foobar',
-        flush: 'lazy',
+        flush: 'sync',
         paths: 'counter',
+      },
+      {
+        key: 'test',
+        flush: 'async',
+        paths: 'test',
       },
     ],
   },
   state: () => ({
     counter: 0,
+    test: 'test',
   }),
   actions: {
     increment() {
