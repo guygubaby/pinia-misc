@@ -18,9 +18,11 @@ export interface PersistStrategy {
   /**
    * Flush strategy, if not set will use 'sync', the others two are 'async' and 'lazy', which can be used for better performance
    *
-   * sync: persist immediately
-   * async: persist after promise resolved
-   * lazy: persist on window beforeunload
+   * `sync`: persist immediately
+   *
+   * `async`: persist using microtask queue
+   *
+   * `lazy`: persist just on window beforeunload
    */
   flush?: Flush
 }
@@ -50,54 +52,73 @@ type Fn = () => void
 
 const isClient = typeof window !== 'undefined'
 
-const noop = () => {}
-
 const toArray = (paths: string | string[]) => {
   if (Array.isArray(paths))
     return paths
   return [paths]
 }
 
-let isPending = false
-const p = Promise.resolve()
-const fnMap = new Map<string, Fn>()
-
-const flushJob = (storeKey: string) => {
-  const func = fnMap.get(storeKey) || noop
-
-  func()
-  isPending = false
-
-  fnMap.delete(storeKey)
+const runAll = (jobs: Fn[]) => {
+  jobs.forEach(job => job())
 }
 
-const persist = (storeKey: string, flush: Flush, job: Fn) => {
+const p = Promise.resolve()
+
+let isAsyncJobsPending = false
+const asyncJobMap = new Map<string, Fn>()
+
+const queueAsyncJob = (key: string, job: Fn) => {
+  asyncJobMap.set(key, job)
+
+  if (isAsyncJobsPending)
+    return
+
+  isAsyncJobsPending = true
+
+  p.then(() => {
+    runAll([...asyncJobMap.values()])
+    asyncJobMap.clear()
+    isAsyncJobsPending = false
+  })
+}
+
+let isLazyJobsRegisted = false
+const lazyJobMap = new Map<string, Fn>()
+
+const queueLazyJob = (key: string, job: Fn) => {
+  lazyJobMap.set(key, job)
+
+  if (isLazyJobsRegisted)
+    return
+
+  isLazyJobsRegisted = true
+
+  window.addEventListener('beforeunload', () => {
+    runAll([...lazyJobMap.values()])
+    lazyJobMap.clear()
+    isLazyJobsRegisted = false
+  }, { once: true })
+}
+
+const persist = (key: string, flush: Flush, job: Fn) => {
   if (!isClient)
     return
 
   if (flush === 'sync')
     return job()
 
-  fnMap.set(storeKey, job)
-
-  if (isPending)
-    return
-
-  isPending = true
-
-  if (flush === 'async')
-    return p.then(() => flushJob(storeKey))
-
-  window.addEventListener('beforeunload', () => flushJob(storeKey), { once: true })
+  const fn = flush === 'async' ? queueAsyncJob : queueLazyJob
+  fn(key, job)
 }
 
 export const updateStorage = (strategy: PersistStrategy, store: Store) => {
   const flush = strategy.flush || 'sync'
-  const storage = strategy.storage || sessionStorage
   const storeKey = strategy.key || store.$id
-  const paths = strategy.paths
 
   const fn = () => {
+    const storage = strategy.storage || sessionStorage
+    const paths = strategy.paths
+
     let state: PartialState
 
     if (paths) {
@@ -110,7 +131,12 @@ export const updateStorage = (strategy: PersistStrategy, store: Store) => {
       state = store.$state
     }
 
-    storage.setItem(storeKey, JSON.stringify(state))
+    try {
+      storage.setItem(storeKey, JSON.stringify(state))
+    }
+    catch (error: any) {
+      throw new Error('Failed to persist state to storage:', error)
+    }
   }
 
   persist(storeKey, flush, fn)
@@ -132,8 +158,13 @@ export const persistPlugin = ({ options, store }: PiniaPluginContext): void => {
       const storageResult = storage.getItem(storeKey)
 
       if (storageResult) {
-        store.$patch(JSON.parse(storageResult))
-        updateStorage(strategy, store)
+        try {
+          store.$patch(JSON.parse(storageResult))
+          updateStorage(strategy, store)
+        }
+        catch (error: any) {
+          throw new Error('Failed to restore state from storage:', error)
+        }
       }
     })
 
