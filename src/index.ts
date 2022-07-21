@@ -3,14 +3,36 @@ import type { PiniaPluginContext } from 'pinia'
 export type Flush = 'sync' | 'async' | 'lazy'
 
 export interface PersistStrategy {
+  /**
+   * Persist key, if not set will use store id instead
+   */
   key?: string
+  /**
+   * Storage to use, if not set will use sessionStorage
+   */
   storage?: Storage
-  paths?: string[]
+  /**
+   * Paths to persist, if not set will persist all, can be string or array
+   */
+  paths?: string[] | string
+  /**
+   * Flush strategy, if not set will use 'sync', the others two are 'async' and 'lazy', which can be used for better performance
+   *
+   * sync: persist immediately
+   * async: persist after promise resolved
+   * lazy: persist on window beforeunload
+   */
   flush?: Flush
 }
 
 export interface PersistOptions {
+  /**
+   * Whether to persist the state on the client.
+   */
   enabled: true
+  /**
+   * Custom strategies to persisting the state.
+   */
   strategies?: PersistStrategy[]
 }
 
@@ -29,6 +51,12 @@ type Fn = () => void
 const isClient = typeof window !== 'undefined'
 
 const noop = () => {}
+
+const toArray = (paths: string | string[]) => {
+  if (Array.isArray(paths))
+    return paths
+  return [paths]
+}
 
 let isPending = false
 const p = Promise.resolve()
@@ -61,24 +89,27 @@ const persist = (flush: Flush, job: Fn) => {
 }
 
 export const updateStorage = (strategy: PersistStrategy, store: Store) => {
-  const storage = strategy.storage || sessionStorage
-  const storeKey = strategy.key || store.$id
-  const paths = strategy.paths
   const flush = strategy.flush || 'sync'
 
-  let state: PartialState
+  const fn = () => {
+    const storage = strategy.storage || sessionStorage
+    const storeKey = strategy.key || store.$id
+    const paths = strategy.paths
 
-  if (paths) {
-    state = paths.reduce((finalObj, key) => {
-      finalObj[key] = store.$state[key]
-      return finalObj
-    }, {} as PartialState)
-  }
-  else {
-    state = store.$state
-  }
+    let state: PartialState
 
-  const fn = () => storage.setItem(storeKey, JSON.stringify(state))
+    if (paths) {
+      state = toArray(paths).reduce((finalObj, key) => {
+        finalObj[key] = store.$state[key]
+        return finalObj
+      }, {} as PartialState)
+    }
+    else {
+      state = store.$state
+    }
+
+    storage.setItem(storeKey, JSON.stringify(state))
+  }
 
   persist(flush, fn)
 }

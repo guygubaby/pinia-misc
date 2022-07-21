@@ -1,3 +1,5 @@
+/// <reference types="pinia-misc" />
+
 import { defineStore } from 'pinia'
 
 export const useTestStore = defineStore('test', {
@@ -7,6 +9,7 @@ export const useTestStore = defineStore('test', {
       {
         key: 'foobar',
         flush: 'lazy',
+        paths: 'counter',
       },
     ],
   },
