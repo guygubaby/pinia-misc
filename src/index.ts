@@ -1,49 +1,97 @@
-import { PiniaPluginContext } from 'pinia'
+import type { PiniaPluginContext } from 'pinia'
+
+export type Flush = 'sync' | 'async' | 'lazy'
 
 export interface PersistStrategy {
-  key?: string;
-  storage?: Storage;
-  paths?: string[];
+  key?: string
+  storage?: Storage
+  paths?: string[]
+  flush?: Flush
 }
 
 export interface PersistOptions {
-  enabled: true;
-  strategies?: PersistStrategy[];
+  enabled: true
+  strategies?: PersistStrategy[]
 }
 
-type Store = PiniaPluginContext['store'];
-type PartialState = Partial<Store['$state']>;
+type Store = PiniaPluginContext['store']
+type PartialState = Partial<Store['$state']>
 
 declare module 'pinia' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   export interface DefineStoreOptionsBase<S, Store> {
-    persist?: PersistOptions;
+    persist?: PersistOptions
   }
+}
+
+type Fn = () => void
+
+const isClient = typeof window !== 'undefined'
+
+const noop = () => {}
+
+let isPending = false
+const p = Promise.resolve()
+let func: Fn = noop
+
+const flushJob = () => {
+  func()
+  isPending = false
+  func = noop
+}
+
+const persist = (flush: Flush, job: Fn) => {
+  if (!isClient)
+    return
+
+  if (flush === 'sync')
+    return job()
+
+  func = job
+
+  if (isPending)
+    return
+
+  isPending = true
+
+  if (flush === 'async')
+    return p.then(flushJob)
+
+  window.addEventListener('beforeunload', flushJob, { once: true })
 }
 
 export const updateStorage = (strategy: PersistStrategy, store: Store) => {
   const storage = strategy.storage || sessionStorage
   const storeKey = strategy.key || store.$id
+  const paths = strategy.paths
+  const flush = strategy.flush || 'sync'
 
-  if (strategy.paths) {
-    const partialState = strategy.paths.reduce((finalObj, key) => {
+  let state: PartialState
+
+  if (paths) {
+    state = paths.reduce((finalObj, key) => {
       finalObj[key] = store.$state[key]
       return finalObj
     }, {} as PartialState)
-
-    storage.setItem(storeKey, JSON.stringify(partialState))
-  } else {
-    storage.setItem(storeKey, JSON.stringify(store.$state))
   }
+  else {
+    state = store.$state
+  }
+
+  const fn = () => storage.setItem(storeKey, JSON.stringify(state))
+
+  persist(flush, fn)
 }
 
 export default ({ options, store }: PiniaPluginContext): void => {
   if (options.persist?.enabled) {
-    const defaultStrat: PersistStrategy[] = [{
+    const defaultStrategy: PersistStrategy[] = [{
       key: store.$id,
       storage: sessionStorage,
+      flush: 'sync',
     }]
 
-    const strategies = options.persist?.strategies?.length ? options.persist?.strategies : defaultStrat
+    const strategies = options.persist?.strategies?.length ? options.persist?.strategies : defaultStrategy
 
     strategies.forEach((strategy) => {
       const storage = strategy.storage || sessionStorage

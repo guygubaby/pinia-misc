@@ -1,53 +1,51 @@
 {
-  "name": "pinia-plugin-persist",
-  "version": "1.0.0",
+  "name": "pinia-misc",
+  "type": "module",
+  "version": "0.0.0",
+  "packageManager": "pnpm@7.2.1",
+  "description": "pinia related utilities",
+  "author": "guygubaby <guygubaby@gmail.com>",
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/guygubaby",
+  "homepage": "https://github.com/guygubaby/pinia-misc#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Seb-L/pinia-plugin-persist.git"
+    "url": "git+https://github.com/guygubaby/pinia-misc.git"
   },
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build && tsc",
-    "lint": "eslint . --ext .ts",
-    "unit:run": "vitest run --coverage",
-    "unit:watch": "vitest watch",
-    "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs"
-  },
-  "files": [
-    "dist",
-    "types"
-  ],
-  "main": "./dist/pinia-persist.umd.js",
-  "module": "./dist/pinia-persist.es.js",
+  "bugs": "https://github.com/guygubaby/pinia-misc/issues",
+  "keywords": ["pinia", "persist"],
+  "sideEffects": false,
   "exports": {
     ".": {
-      "import": "./dist/pinia-persist.es.js",
-      "require": "./dist/pinia-persist.umd.js"
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs"
     }
   },
-  "types": "./dist",
-  "devDependencies": {
-    "@babel/types": "^7.17.0",
-    "@types/node": "^17.0.21",
-    "@typescript-eslint/eslint-plugin": "^5.14.0",
-    "@typescript-eslint/parser": "^5.14.0",
-    "c8": "^7.11.0",
-    "eslint": "^8.10.0",
-    "eslint-config-prettier": "^8.5.0",
-    "eslint-plugin-prettier": "^4.0.0",
-    "eslint-plugin-simple-import-sort": "^7.0.0",
-    "happy-dom": "^2.46.0",
-    "pinia": "^2.0.0",
-    "prettier": "^2.5.1",
-    "typescript": "^4.5.4",
-    "vite": "^2.8.0",
-    "vitepress": "^0.22.3",
-    "vitest": "^0.6.0",
-    "vue": "^3.2.31"
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./dist/*",
+        "./dist/index.d.ts"
+      ]
+    }
   },
-  "dependencies": {
-    "vue-demi": "^0.12.1"
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "unbuild",
+    "dev": "unbuild --stub",
+    "lint": "eslint .",
+    "prepublishOnly": "nr build",
+    "release": "bumpp",
+    "start": "esno src/index.ts",
+    "test": "vitest",
+    "play": "vite playground",
+    "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
     "@vue/composition-api": "^1.0.0",
@@ -58,5 +56,25 @@
     "@vue/composition-api": {
       "optional": true
     }
+  },
+  "dependencies": {
+    "vue-demi": "^0.13.5"
+  },
+  "devDependencies": {
+    "@antfu/ni": "^0.16.3",
+    "@babel/types": "^7.18.9",
+    "@bryce-loskie/eslint-config": "^2.0.2",
+    "@types/node": "^18.0.6",
+    "bumpp": "^8.2.1",
+    "eslint": "^8.20.0",
+    "esno": "^0.16.3",
+    "happy-dom": "^6.0.4",
+    "pinia": "^2.0.16",
+    "pnpm": "^7.5.0",
+    "typescript": "^4.7.4",
+    "unbuild": "^0.7.4",
+    "vite": "^3.0.2",
+    "vitest": "^0.18.1",
+    "vue": "^3.2.37"
   }
 }

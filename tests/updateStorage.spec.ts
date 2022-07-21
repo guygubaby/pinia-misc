@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { PersistStrategy } from '../src/index'
 import { updateStorage } from '../src/index'
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 describe('updateStorage()', () => {
   let storage: Storage
@@ -28,36 +31,39 @@ describe('updateStorage()', () => {
     vi.resetAllMocks()
   })
 
-  it('custom storage', () => {
-    const strategy = {
-      storage: storage,
+  it('custom storage', async () => {
+    const strategy: PersistStrategy = {
+      storage,
+      flush: 'async',
     }
 
     updateStorage(strategy, store)
 
+    await sleep(100)
+
     expect(storage.setItem).toHaveBeenCalledWith(
       'my-id',
-      JSON.stringify(store.$state)
+      JSON.stringify(store.$state),
     )
   })
 
   it('custom key', () => {
     const strategy = {
       key: 'my-custom-key',
-      storage: storage,
+      storage,
     }
 
     updateStorage(strategy, store)
 
     expect(storage.setItem).toHaveBeenCalledWith(
       'my-custom-key',
-      JSON.stringify(store.$state)
+      JSON.stringify(store.$state),
     )
   })
 
   it('custom paths', () => {
     const strategy = {
-      storage: storage,
+      storage,
       paths: ['firstname'],
     }
 
@@ -65,7 +71,7 @@ describe('updateStorage()', () => {
 
     expect(storage.setItem).toHaveBeenCalledWith(
       'my-id',
-      JSON.stringify({ firstname: 'foo' })
+      JSON.stringify({ firstname: 'foo' }),
     )
   })
 
@@ -87,7 +93,7 @@ describe('updateStorage()', () => {
 
     expect(sessionStorage.setItem).toHaveBeenCalledWith(
       'my-id',
-      JSON.stringify(store.$state)
+      JSON.stringify(store.$state),
     )
   })
 })
