@@ -20,9 +20,9 @@ export interface PersistStrategy {
    *
    * `sync`: persist immediately
    *
-   * `async`: persist using microtask queue
+   * `async`: persist using task queue
    *
-   * `lazy`: persist just on window beforeunload
+   * `lazy`: persist using window beforeunload event
    */
   flush?: Flush
 }
@@ -53,33 +53,33 @@ type Fn = () => void
 const isClient = typeof window !== 'undefined'
 
 const toArray = (paths: string | string[]) => {
-  if (Array.isArray(paths))
-    return paths
+  if (Array.isArray(paths)) return paths
   return [paths]
 }
 
 const runAll = (jobs: Fn[]) => {
-  jobs.forEach(job => job())
+  try {
+    jobs.forEach((job) => job())
+  } catch (error) {
+    // pass
+  }
 }
 
-const p = Promise.resolve()
-
-let isAsyncJobsPending = false
+let asyncJobsTimerId: ReturnType<typeof setTimeout> | undefined = undefined
 const asyncJobMap = new Map<string, Fn>()
 
 const queueAsyncJob = (key: string, job: Fn) => {
   asyncJobMap.set(key, job)
 
-  if (isAsyncJobsPending)
-    return
+  if (asyncJobsTimerId) return
 
-  isAsyncJobsPending = true
-
-  p.then(() => {
-    runAll([...asyncJobMap.values()])
+  asyncJobsTimerId = setTimeout(() => {
+    const jobs = [...asyncJobMap.values()]
     asyncJobMap.clear()
-    isAsyncJobsPending = false
-  })
+    runAll(jobs)
+    clearTimeout(asyncJobsTimerId)
+    asyncJobsTimerId = undefined
+  }, 0)
 }
 
 let isLazyJobsRegisted = false
@@ -88,24 +88,25 @@ const lazyJobMap = new Map<string, Fn>()
 const queueLazyJob = (key: string, job: Fn) => {
   lazyJobMap.set(key, job)
 
-  if (isLazyJobsRegisted)
-    return
+  if (isLazyJobsRegisted) return
 
   isLazyJobsRegisted = true
 
-  window.addEventListener('beforeunload', () => {
-    runAll([...lazyJobMap.values()])
-    lazyJobMap.clear()
-    isLazyJobsRegisted = false
-  }, { once: true })
+  window.addEventListener(
+    'beforeunload',
+    () => {
+      runAll([...lazyJobMap.values()])
+      lazyJobMap.clear()
+      isLazyJobsRegisted = false
+    },
+    { once: true }
+  )
 }
 
 const persist = (key: string, flush: Flush, job: Fn) => {
-  if (!isClient)
-    return
+  if (!isClient) return
 
-  if (flush === 'sync')
-    return job()
+  if (flush === 'sync') return job()
 
   const fn = flush === 'async' ? queueAsyncJob : queueLazyJob
   fn(key, job)
@@ -126,15 +127,13 @@ export const updateStorage = (strategy: PersistStrategy, store: Store) => {
         finalObj[key] = store.$state[key]
         return finalObj
       }, {} as PartialState)
-    }
-    else {
+    } else {
       state = store.$state
     }
 
     try {
       storage.setItem(storeKey, JSON.stringify(state))
-    }
-    catch (error: any) {
+    } catch (error: any) {
       throw new Error('Failed to persist state to storage:', error)
     }
   }
@@ -143,35 +142,36 @@ export const updateStorage = (strategy: PersistStrategy, store: Store) => {
 }
 
 export const persistPlugin = ({ options, store }: PiniaPluginContext): void => {
-  if (options.persist?.enabled) {
-    const defaultStrategy: PersistStrategy[] = [{
+  if (!options.persist?.enabled) return
+
+  const defaultStrategy: PersistStrategy[] = [
+    {
       key: store.$id,
       storage: sessionStorage,
       flush: 'sync',
-    }]
+    },
+  ]
 
-    const strategies = options.persist?.strategies?.length ? options.persist?.strategies : defaultStrategy
+  const strategies = options.persist?.strategies?.length ? options.persist?.strategies : defaultStrategy
 
-    strategies.forEach((strategy) => {
-      const storage = strategy.storage || sessionStorage
-      const storeKey = strategy.key || store.$id
-      const storageResult = storage.getItem(storeKey)
+  strategies.forEach((strategy) => {
+    const storage = strategy.storage || sessionStorage
+    const storeKey = strategy.key || store.$id
+    const storageResult = storage.getItem(storeKey)
 
-      if (storageResult) {
-        try {
-          store.$patch(JSON.parse(storageResult))
-          updateStorage(strategy, store)
-        }
-        catch (error: any) {
-          throw new Error('Failed to restore state from storage:', error)
-        }
-      }
-    })
-
-    store.$subscribe(() => {
-      strategies.forEach((strategy) => {
+    if (storageResult) {
+      try {
+        store.$patch(JSON.parse(storageResult))
         updateStorage(strategy, store)
-      })
+      } catch (error: any) {
+        throw new Error('Failed to restore state from storage:', error)
+      }
+    }
+  })
+
+  store.$subscribe(() => {
+    strategies.forEach((strategy) => {
+      updateStorage(strategy, store)
     })
-  }
+  })
 }
